@@ -1,0 +1,53 @@
+services:
+  mysqldb:
+    image: mysql:8.0
+    container_name: mysqldb
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: test_db
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - devops-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    image: ${DOCKER_USER:-local}/devops-backend:1.0.0
+    container_name: springapp
+    depends_on:
+      mysqldb:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysqldb:3306/test_db?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    ports:
+      - "8090:8080"      # 8080 is taken by Jenkins; this port is for direct testing only
+    networks:
+      - devops-net
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    image: ${DOCKER_USER:-local}/devops-frontend:1.0.0
+    container_name: angular
+    depends_on:
+      - backend
+    ports:
+      - "4200:80"
+    networks:
+      - devops-net
+    restart: unless-stopped
+
+networks:
+  devops-net:
+
+volumes:
+  mysql-data:
